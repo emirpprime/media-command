@@ -176,6 +176,9 @@ class Media_Command extends WP_CLI_Command {
 	 * [--allow_unsafe]
 	 * : If set, bypasses the `reject_unsafe_urls` check; required when importing from remote domain not publically resolvable.
 	 *
+	 * [--import_only]
+	 * : If set, media files (local only) are imported to the library but not moved on disk.
+	 *
 	 * [--featured_image]
 	 * : If set, set the imported image as the Featured Image of the post its attached to.
 	 *
@@ -236,7 +239,11 @@ class Media_Command extends WP_CLI_Command {
 					$errors++;
 					continue;
 				}
-				$tempfile = $this->make_copy( $file );
+				if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'import_only' ) ) {
+					$tempfile = $file;
+				} else {
+					$tempfile = $this->make_copy( $file );
+				}
 			} else {
 				$tempfile = $this->download_url( $file, null, $reject_unsafe, \WP_CLI\Utils\get_flag_value( $assoc_args, 'allow_unsafe' ) );
 				if ( is_wp_error( $tempfile ) ) {
@@ -281,15 +288,31 @@ class Media_Command extends WP_CLI_Command {
 				$post_array['post_title'] = preg_replace( '/\.[^.]+$/', '', Utils\basename( $file ) );
 			}
 
-			// Deletes the temporary file.
-			$success = media_handle_sideload( $file_array, $assoc_args['post_id'], $assoc_args['title'], $post_array );
-			if ( is_wp_error( $success ) ) {
-				WP_CLI::warning( sprintf(
-					"Unable to import file '%s'. Reason: %s",
-					$orig_filename, implode( ', ', $success->get_error_messages() )
-				) );
-				$errors++;
-				continue;
+			if ( \WP_CLI\Utils\get_flag_value( $assoc_args, 'import_only' ) ) {
+				$wp_filetype = wp_check_filetype( $file, null );
+				$post_array['post_mime_type'] = $wp_filetype['type'];
+				$post_array['post_status'] = 'inherit';
+
+				$success = wp_insert_attachment( $attachment, $upload_file['file'], $parent_post_id );
+				if ( ! is_wp_error( $success ) ) {
+					WP_CLI::warning( sprintf(
+						"Unable to insert file '%s'. Reason: %s",
+						$orig_filename, implode( ', ', $success->get_error_messages() )
+					) );
+					$errors++;
+					continue;
+				}
+			} else {
+				// Deletes the temporary file.
+				$success = media_handle_sideload( $file_array, $assoc_args['post_id'], $assoc_args['title'], $post_array );
+				if ( is_wp_error( $success ) ) {
+					WP_CLI::warning( sprintf(
+						"Unable to import file '%s'. Reason: %s",
+						$orig_filename, implode( ', ', $success->get_error_messages() )
+					) );
+					$errors++;
+					continue;
+				}
 			}
 
 			// Set alt text.
@@ -620,8 +643,9 @@ class Media_Command extends WP_CLI_Command {
 	 *
 	 * @since 2.5.0
 	 *
-	 * @param string $url the URL of the file to download
-	 * @param int $timeout The timeout for the request to download the file default 300 seconds
+	 * @param string $url The URL of the file to download.
+	 * @param int    $timeout The timeout for the request to download the file default 300 seconds.
+	 * @param bool   $allow_unsafe Whether to run reject_unsafe_urls check.
 	 * @return mixed WP_Error on failure, string Filename on success.
 	 */
 	private function download_url( $url, $timeout = 300, $allow_unsafe = false ) {
