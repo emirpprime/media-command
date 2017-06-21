@@ -293,8 +293,11 @@ class Media_Command extends WP_CLI_Command {
 				$post_array['post_mime_type'] = $wp_filetype['type'];
 				$post_array['post_status'] = 'inherit';
 
-				$success = wp_insert_attachment( $attachment, $upload_file['file'], $parent_post_id );
+				$success = wp_insert_attachment( $post_array, $file, $assoc_args['post_id'] );
 				if ( ! is_wp_error( $success ) ) {
+					wp_update_attachment_metadata( $success, wp_generate_attachment_metadata( $success, $file ) );
+				}
+				if ( is_wp_error( $success ) ) {
 					WP_CLI::warning( sprintf(
 						"Unable to insert file '%s'. Reason: %s",
 						$orig_filename, implode( ', ', $success->get_error_messages() )
