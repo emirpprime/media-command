@@ -3,7 +3,7 @@ Feature: Manage WordPress attachments
   Background:
     Given a WP install
 
-  Scenario: Import image from remote URL
+  Scenario: Import media from remote URL
     When I run `wp media import 'http://wp-cli.org/behat-data/codeispoetry.png' --post_id=1`
     Then STDOUT should contain:
       """
@@ -11,18 +11,7 @@ Feature: Manage WordPress attachments
       """
     And STDOUT should contain:
       """
-      Success: Imported 1 of 1 images.
-      """
-
-  Scenario: Import image from remote (unsafe) URL
-    When I run `wp media import 'http://wp-cli.org/behat-data/codeispoetry.png' --allow_unsafe`
-    Then STDOUT should contain:
-      """
-      Imported file 'http://wp-cli.org/behat-data/codeispoetry.png'
-      """
-    And STDOUT should contain:
-      """
-      Success: Imported 1 of 1
+      Success: Imported 1 of 1 items.
       """
 
   Scenario: Fail to import missing image
@@ -30,16 +19,16 @@ Feature: Manage WordPress attachments
     Then STDERR should be:
       """
       Warning: Unable to import file 'gobbledygook.png'. Reason: File doesn't exist.
-      Error: No images imported.
+      Error: No items imported.
       """
     And the return code should be 1
 
-  Scenario: Fail to import missing image on Windows
+  Scenario: Fail to import missing item on Windows
     When I try `wp media import c:/path/gobbledygook.png`
     Then STDERR should be:
       """
       Warning: Unable to import file 'c:/path/gobbledygook.png'. Reason: File doesn't exist.
-      Error: No images imported.
+      Error: No items imported.
       """
     And the return code should be 1
 
@@ -84,19 +73,20 @@ Feature: Manage WordPress attachments
     Given download:
       | path                        | url                                              |
       | {CACHE_DIR}/large-image.jpg | http://wp-cli.org/behat-data/large-image.jpg     |
+    And I run `wp option update uploads_use_yearmonth_folders 0`
 
-    When I run `wp media import {CACHE_DIR}/large-image.jpg --import_only`
+    When I run `wp media import {CACHE_DIR}/large-image.jpg --skip-copy`
     Then STDOUT should contain:
       """
       Imported file
       """
     And STDOUT should contain:
       """
-      Success: Imported 1 of 1
+      Success: Imported 1 of 1 items.
       """
     And the {CACHE_DIR}/large-image.jpg file should exist
+    And the wp-content/uploads/large-image.jpg file should not exist
     And the return code should be 0
-
 
   Scenario: Import a file and use its filename as the title
     Given download:
@@ -158,14 +148,14 @@ Feature: Manage WordPress attachments
     When I run `wp media import 'http://wp-cli.org/behat-data/codeispoetry.png' {CACHE_DIR}/large-image.jpg`
     Then STDOUT should contain:
       """
-      Success: Imported 2 of 2 images.
+      Success: Imported 2 of 2 items.
       """
 
   Scenario: Fail to import one image but continue trying the next
     When I try `wp media import gobbledygook.png 'http://wp-cli.org/behat-data/codeispoetry.png'`
     Then STDERR should contain:
       """
-      Error: Only imported 1 of 2 images.
+      Error: Only imported 1 of 2 items.
       """
     And the return code should be 1
 
@@ -174,7 +164,7 @@ Feature: Manage WordPress attachments
     Then STDERR should be:
       """
       Warning: Unable to import file 'http://wp-cli.org/404'. Reason: Not Found
-      Error: No images imported.
+      Error: No items imported.
       """
     And the return code should be 1
 
